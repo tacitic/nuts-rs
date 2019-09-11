@@ -20,6 +20,7 @@ impl Platform {
             || name.contains("osx")
             || name.contains("darwin")
             || name.ends_with(".dmg")
+            || name.ends_with(".dmg.blockmap")
         {
             return Self::MacOS;
         }
@@ -30,6 +31,7 @@ impl Platform {
             || name.ends_with(".rpm")
             || name.ends_with(".tgz")
             || name.ends_with(".tar.gz")
+            || name.ends_with(".AppImage")
         {
             return Self::Linux;
         }
@@ -73,6 +75,7 @@ pub struct ApiToken(String);
 impl FromRequest<'_, '_> for ApiToken {
     type Error = String;
 
+    // TODO(@czyk): Print reason to console when this happens...
     fn from_request(request: &Request<'_>) -> request::Outcome<Self, Self::Error> {
         let keys: Vec<_> = request.headers().get("Authorization").collect();
         match keys.len() {
@@ -86,7 +89,9 @@ impl FromRequest<'_, '_> for ApiToken {
 
 // TODO(rharink): Implement token authentication
 fn is_valid_auth_token(token: &str) -> bool {
-    true
+    // TODO(@czyk): Make configurable
+    const API_TOKEN: &str = "ogUzi_9KUtgHLABuKrHg";
+    return token == format!("Bearer {}", API_TOKEN);
 }
 
 // TODO(rharink): Should we use it like this? we might have to relay all of semver::Version's methods
