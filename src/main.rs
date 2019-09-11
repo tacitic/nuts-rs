@@ -3,13 +3,16 @@
 #[macro_use]
 extern crate rocket;
 
-use nuts_rs::backend::github::{self, Github};
-use nuts_rs::backend::{Backend, Release};
-use nuts_rs::{ApiToken, Config, Platform, Version};
+use std::env;
+
 use rocket::request::FromParam;
 use rocket::response::content::Json;
 use rocket::State;
 use serde::{Deserialize, Serialize};
+
+use nuts_rs::backend::github::{self, Github};
+use nuts_rs::backend::{Backend, Release};
+use nuts_rs::{ApiToken, Config, Platform, Version};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateResponse {
@@ -27,9 +30,9 @@ impl UpdateResponse {
 
 fn main() {
     let cfg = Config {
-        jwt_secret: std::env::var("JWT_SECRET").unwrap_or_default(),
-        github_repository: std::env::var("GITHUB_REPOSITORY").unwrap_or_default(),
-        github_access_token: std::env::var("GITHUB_TOKEN").unwrap_or_default(),
+        jwt_secret: env::var("JWT_SECRET").unwrap_or_default(),
+        github_repository: env::var("GITHUB_REPOSITORY").unwrap_or_default(),
+        github_access_token: env::var("GITHUB_TOKEN").unwrap_or_default(),
     };
 
     let backend = Github::new(github::Config {
