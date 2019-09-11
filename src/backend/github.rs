@@ -47,16 +47,18 @@ impl Github {
     // TODO: error handling
     fn get_releases(&self) -> Result<Vec<Box<dyn Release>>, String> {
         let client = reqwest::Client::new();
-        let response = client
-            .get(
-                self.base_url
-                    .join(format!("/repos/{repo}/releases", repo = self.config.repository).as_str())
-                    .unwrap(),
-            )
-            .bearer_auth(&self.config.access_token)
-            .send();
+        let mut response = client.get(
+            self.base_url
+                .join(format!("/repos/{repo}/releases", repo = self.config.repository).as_str())
+                .unwrap(),
+        );
 
-        match response {
+        if &self.config.access_token.len() > &0 {
+            println!("Adding bearer auth {}", &self.config.access_token);
+            response = response.bearer_auth(&self.config.access_token);
+        }
+
+        match response.send() {
             Ok(mut res) => {
                 if !res.status().is_success() {
                     println!("{:?}", res);
@@ -71,6 +73,7 @@ impl Github {
                             platform: Platform::detect_from_filename(&gh_asset.name),
                             version: Version::from(&gh_release.tag_name).unwrap(),
                             file: PathBuf::from(gh_asset.name),
+                            url: Url::parse(gh_asset.url.as_str()).unwrap(),
                         }));
                     }
                 }
@@ -82,6 +85,23 @@ impl Github {
 }
 
 impl Backend for Github {
+    fn get_release(
+        &self,
+        platform: Platform,
+        version: Version,
+    ) -> Result<Box<dyn Release>, String> {
+        self.get_releases()
+            .unwrap()
+            .into_iter()
+            .filter(|x| {
+                *x.get_version().inner_version() == *version.inner_version()
+                    && *x.get_platform() == platform
+                    && x.get_file_type().unwrap().to_string_lossy() == "zip"
+            })
+            .nth(0)
+            .ok_or("no compatible release found".to_string())
+    }
+
     fn resolve_release(
         &self,
         platform: Platform,
@@ -91,8 +111,9 @@ impl Backend for Github {
             .unwrap()
             .into_iter()
             .filter(|x| {
-                *x.get_platform() == platform
-                    && *x.get_version().inner_version() > *version.inner_version()
+                *x.get_version().inner_version() > *version.inner_version()
+                    && *x.get_platform() == platform
+                    && x.get_file_type().unwrap().to_string_lossy() == "zip"
             })
             .nth(0)
             .ok_or("no compatible release found".to_string())
@@ -104,6 +125,7 @@ pub struct GithubRelease {
     platform: Platform,
     version: Version,
     file: PathBuf,
+    url: Url,
 }
 
 impl Release for GithubRelease {
@@ -117,5 +139,9 @@ impl Release for GithubRelease {
 
     fn get_file_type(&self) -> Option<&OsStr> {
         self.file.extension()
+    }
+
+    fn get_download_url(&self) -> &Url {
+        &self.url
     }
 }
