@@ -1,5 +1,6 @@
 use crate::backend::{Backend, Release};
 use crate::{Platform, Version};
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -10,7 +11,7 @@ pub struct Config {
 }
 
 pub struct Github {
-    base_url: String,
+    base_url: Url,
     config: Config,
 }
 
@@ -37,25 +38,9 @@ struct AssetResponse {
 impl Github {
     pub fn new(cfg: Config) -> Self {
         Github {
-            base_url: "https://api.github.com".to_string(),
+            base_url: Url::parse("https://api.github.com").unwrap(),
             config: cfg,
         }
-    }
-
-    // XXX(@czyk): Might be moved to lib and generalized.
-    //  @example: fn(base: &str, extra: &str) -> String
-    //  Goal should be to de-duplicate double slashes and prevent missing slashes
-    //  Not sure if PathBuf is the best approach for this either.
-    fn url(&self, path: &str) -> String {
-        let mut p = path.clone();
-        if p.starts_with("/") {
-            p = &p[1..];
-        }
-
-        let mut pathbuf = PathBuf::new();
-        pathbuf.push(&self.base_url);
-        pathbuf.push(p);
-        pathbuf.as_path().to_string_lossy().to_string()
     }
 
     // TODO: handle paging
@@ -64,8 +49,9 @@ impl Github {
         let client = reqwest::Client::new();
         let response = client
             .get(
-                self.url(format!("/repos/{repo}/releases", repo = self.config.repository).as_str())
-                    .as_str(),
+                self.base_url
+                    .join(format!("/repos/{repo}/releases", repo = self.config.repository).as_str())
+                    .unwrap(),
             )
             .bearer_auth(&self.config.access_token)
             .send();
@@ -130,22 +116,5 @@ impl Release for GithubRelease {
 
     fn get_file_type(&self) -> Option<&OsStr> {
         self.file.extension()
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_url() {
-        let backend = Github::new(Config {
-            repository: "".to_string(),
-            access_token: "".to_string(),
-        });
-
-        assert_eq!(backend.url("test"), "https://api.github.com/test");
-        assert_eq!(backend.url("test/"), "https://api.github.com/test/");
-        assert_eq!(backend.url("/test/"), "https://api.github.com/test/");
     }
 }
