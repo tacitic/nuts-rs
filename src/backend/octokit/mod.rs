@@ -1,5 +1,8 @@
+use std::str::FromStr;
+
 mod parser;
 
+#[derive(Debug)]
 pub enum LinkHeaderType {
     Prev,
     Next,
@@ -20,11 +23,20 @@ impl From<String> for LinkHeaderType {
     }
 }
 
+impl FromStr for LinkHeaderType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(LinkHeaderType::from(s.to_string()))
+    }
+}
+
+#[derive(Debug)]
 pub struct LinkHeader {
-    url: String,
-    page: u32,
-    per_page: u32,
-    rel: LinkHeaderType,
+    pub url: String,
+    pub page: u32,
+    pub per_page: u32,
+    pub rel: LinkHeaderType,
 }
 
 impl LinkHeader {

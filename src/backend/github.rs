@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
+#[derive(Debug)]
 pub struct Config {
     pub repository: String,
     pub access_token: String,

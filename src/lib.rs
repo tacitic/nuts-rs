@@ -4,6 +4,9 @@ use rocket::request::{self, FromParam, FromRequest};
 use rocket::{Outcome, Request};
 use serde::{Deserialize, Serialize};
 
+#[macro_use]
+extern crate nom;
+
 pub mod backend;
 
 #[derive(Debug, PartialEq)]
