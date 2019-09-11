@@ -26,11 +26,10 @@ impl UpdateResponse {
 }
 
 fn main() {
-    // @TODO(rharink): Make config not hardcoded
     let cfg = Config {
-        jwt_secret: "supersecret".to_string(),
-        github_repository: "tacitic/flux-client".to_string(),
-        github_access_token: "".to_string(),
+        jwt_secret: std::env::var("JWT_SECRET").unwrap_or_default(),
+        github_repository: std::env::var("GITHUB_REPOSITORY").unwrap_or_default(),
+        github_access_token: std::env::var("GITHUB_TOKEN").unwrap_or_default(),
     };
 
     let backend = Github::new(github::Config {
