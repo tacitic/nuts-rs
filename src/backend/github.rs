@@ -2,7 +2,7 @@ use crate::backend::{Backend, Release};
 use crate::{Platform, Version};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct Config {
     pub repository: String,
@@ -42,9 +42,13 @@ impl Github {
         }
     }
 
-    // TODO: Check for weak paths not starting with / trim etc.
-    fn url(&self, path: &str) -> String {
-        format!("{}{}", self.base_url, path)
+    // TODO(@czyk): Work in progress, not all tests succeed...
+    // TODO(@czyk): Might be moved to lib.
+    pub fn url(&self, path: &str) -> String {
+        let mut pathbuf = PathBuf::new();
+        pathbuf.push(&self.base_url);
+        pathbuf.push(path);
+        format!("{}", pathbuf.display())
     }
 
     // TODO: handle paging
@@ -119,5 +123,22 @@ impl Release for GithubRelease {
 
     fn get_file_type(&self) -> Option<&OsStr> {
         self.file.extension()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_url() {
+        let backend = Github::new(Config {
+            repository: "".to_string(),
+            access_token: "".to_string(),
+        });
+
+        assert_eq!(backend.url("test"), "https://api.github.com/test");
+        assert_eq!(backend.url("test/"), "https://api.github.com/test");
+        assert_eq!(backend.url("/test/"), "https://api.github.com/test");
     }
 }

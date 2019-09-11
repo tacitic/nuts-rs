@@ -142,7 +142,6 @@ impl<'a> FromParam<'a> for Platform {
 #[cfg(test)]
 mod test {
     use super::*;
-    use semver;
 
     #[test]
     fn test_from_param() {
