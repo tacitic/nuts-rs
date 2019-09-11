@@ -55,6 +55,7 @@ impl Github {
             )
             .bearer_auth(&self.config.access_token)
             .send();
+
         match response {
             Ok(mut res) => {
                 if !res.status().is_success() {
