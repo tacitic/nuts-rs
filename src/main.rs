@@ -3,25 +3,36 @@
 #[macro_use]
 extern crate rocket;
 
-use nuts_rs::backend::github::{self, Github};
-use nuts_rs::backend::{Backend, Release};
-use nuts_rs::{ApiToken, Config, Platform, Version};
+use std::env;
+
 use rocket::request::FromParam;
 use rocket::response::content::Json;
 use rocket::State;
 use serde::{Deserialize, Serialize};
+
+use nuts_rs::backend::github::{self, Github};
+use nuts_rs::backend::{Backend, Release};
+use nuts_rs::{ApiToken, Config, Platform, Version};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateResponse {
     url: String,
 }
 
+impl UpdateResponse {
+    pub fn dummy() -> Self {
+        UpdateResponse {
+            url: "http://localhost:4000/flux/download/version/0.3.0-alpha.16/osx_64?filetype=zip"
+                .to_string(),
+        }
+    }
+}
+
 fn main() {
-    // @TODO(rharink): Make config not hardcoded
     let cfg = Config {
-        jwt_secret: "supersecret".to_string(),
-        github_repository: "tacitic/flux-client".to_string(),
-        github_access_token: "83d7b666b5f800ab18bd0f0c6ee703c381a341a9".to_string(),
+        jwt_secret: env::var("JWT_SECRET").unwrap_or_default(),
+        github_repository: env::var("GITHUB_REPOSITORY").unwrap_or_default(),
+        github_access_token: env::var("GITHUB_TOKEN").unwrap_or_default(),
     };
 
     let backend = Github::new(github::Config {

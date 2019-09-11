@@ -1,6 +1,6 @@
 use crate::backend::{Backend, Release};
 use crate::{Platform, Version};
-use reqwest::Response;
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -11,7 +11,7 @@ pub struct Config {
 }
 
 pub struct Github {
-    base_url: String,
+    base_url: Url,
     config: Config,
 }
 
@@ -38,14 +38,9 @@ struct AssetResponse {
 impl Github {
     pub fn new(cfg: Config) -> Self {
         Github {
-            base_url: "https://api.github.com".to_string(),
+            base_url: Url::parse("https://api.github.com").unwrap(),
             config: cfg,
         }
-    }
-
-    // TODO: Check for weak paths not starting with / trim etc.
-    fn url(&self, path: &str) -> String {
-        format!("{}{}", self.base_url, path)
     }
 
     // TODO: handle paging
@@ -54,12 +49,13 @@ impl Github {
         let client = reqwest::Client::new();
         let response = client
             .get(
-                self.url(format!("/repos/{repo}/releases", repo = self.config.repository).as_str())
-                    .as_str(),
+                self.base_url
+                    .join(format!("/repos/{repo}/releases", repo = self.config.repository).as_str())
+                    .unwrap(),
             )
-            .query(&[("page", 1), ("per_page", 5)])
             .bearer_auth(&self.config.access_token)
             .send();
+
         match response {
             Ok(mut res) => {
                 if !res.status().is_success() {
@@ -82,55 +78,6 @@ impl Github {
             }
             Err(e) => Err(e.to_string()),
         }
-    }
-
-    fn get_releases_paginated(&self, per_page: u32) -> Result<Vec<Box<dyn Release>>, String> {
-        let mut next = Some(1);
-        let mut out = vec![];
-        let client = reqwest::Client::new();
-        let url =
-            self.url(format!("/repos/{repo}/releases", repo = self.config.repository).as_str());
-
-        while let Some(n) = next {
-            let mut r = client
-                .get(url.as_str())
-                .query(&[("page", n), ("per_page", per_page)])
-                .bearer_auth(&self.config.access_token)
-                .send()
-                .unwrap();
-
-            if !r.status().is_success() {
-                //TODO(rharink): Add logging
-                return Err("Github returned unsuccessful status code".to_string());
-            }
-
-            match self.parse_releases(&mut r) {
-                Ok(mut x) => out.append(&mut x),
-                Err(e) => return Err(e.to_string()),
-            }
-
-            r.headers().get_all("Link").iter().map(|x| {});
-        }
-
-        Ok(out)
-    }
-
-    fn parse_releases(&self, res: &mut Response) -> Result<Vec<Box<dyn Release>>, String> {
-        let releases: Vec<ReleaseResponse> = res.json().unwrap();
-
-        let mut out: Vec<Box<dyn Release>> = vec![];
-
-        for gh_release in releases {
-            for gh_asset in gh_release.assets {
-                out.push(Box::new(GithubRelease {
-                    platform: Platform::detect_from_filename(&gh_asset.name),
-                    version: Version::from(&gh_release.tag_name).unwrap(),
-                    file: PathBuf::from(gh_asset.name),
-                }));
-            }
-        }
-
-        Ok(out)
     }
 }
 
@@ -171,12 +118,4 @@ impl Release for GithubRelease {
     fn get_file_type(&self) -> Option<&OsStr> {
         self.file.extension()
     }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_url() {}
 }
