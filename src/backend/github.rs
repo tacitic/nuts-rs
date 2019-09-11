@@ -1,5 +1,6 @@
 use crate::backend::{Backend, Release};
 use crate::{Platform, Version};
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -10,7 +11,7 @@ pub struct Config {
 }
 
 pub struct Github {
-    base_url: String,
+    base_url: Url,
     config: Config,
 }
 
@@ -37,14 +38,9 @@ struct AssetResponse {
 impl Github {
     pub fn new(cfg: Config) -> Self {
         Github {
-            base_url: "https://api.github.com".to_string(),
+            base_url: Url::parse("https://api.github.com").unwrap(),
             config: cfg,
         }
-    }
-
-    // TODO: Check for weak paths not starting with / trim etc.
-    fn url(&self, path: &str) -> String {
-        format!("{}{}", self.base_url, path)
     }
 
     // TODO: handle paging
@@ -53,8 +49,9 @@ impl Github {
         let client = reqwest::Client::new();
         let response = client
             .get(
-                self.url(format!("/repos/{repo}/releases", repo = self.config.repository).as_str())
-                    .as_str(),
+                self.base_url
+                    .join(format!("/repos/{repo}/releases", repo = self.config.repository).as_str())
+                    .unwrap(),
             )
             .bearer_auth(&self.config.access_token)
             .send();
