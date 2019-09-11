@@ -42,13 +42,20 @@ impl Github {
         }
     }
 
-    // TODO(@czyk): Work in progress, not all tests succeed...
-    // TODO(@czyk): Might be moved to lib.
-    pub fn url(&self, path: &str) -> String {
+    // XXX(@czyk): Might be moved to lib and generalized.
+    //  @example: fn(base: &str, extra: &str) -> String
+    //  Goal should be to de-duplicate double slashes and prevent missing slashes
+    //  Not sure if PathBuf is the best approach for this either.
+    fn url(&self, path: &str) -> String {
+        let mut p = path.clone();
+        if p.starts_with("/") {
+            p = &p[1..];
+        }
+
         let mut pathbuf = PathBuf::new();
         pathbuf.push(&self.base_url);
-        pathbuf.push(path);
-        format!("{}", pathbuf.display())
+        pathbuf.push(p);
+        pathbuf.as_path().to_string_lossy().to_string()
     }
 
     // TODO: handle paging
@@ -138,7 +145,7 @@ mod test {
         });
 
         assert_eq!(backend.url("test"), "https://api.github.com/test");
-        assert_eq!(backend.url("test/"), "https://api.github.com/test");
-        assert_eq!(backend.url("/test/"), "https://api.github.com/test");
+        assert_eq!(backend.url("test/"), "https://api.github.com/test/");
+        assert_eq!(backend.url("/test/"), "https://api.github.com/test/");
     }
 }
