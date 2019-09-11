@@ -16,21 +16,12 @@ pub struct UpdateResponse {
     url: String,
 }
 
-impl UpdateResponse {
-    pub fn dummy() -> Self {
-        UpdateResponse {
-            url: "http://localhost:4000/flux/download/version/0.3.0-alpha.16/osx_64?filetype=zip"
-                .to_string(),
-        }
-    }
-}
-
 fn main() {
     // @TODO(rharink): Make config not hardcoded
     let cfg = Config {
         jwt_secret: "supersecret".to_string(),
         github_repository: "tacitic/flux-client".to_string(),
-        github_access_token: "".to_string(),
+        github_access_token: "83d7b666b5f800ab18bd0f0c6ee703c381a341a9".to_string(),
     };
 
     let backend = Github::new(github::Config {

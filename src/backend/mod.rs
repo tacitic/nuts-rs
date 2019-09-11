@@ -3,6 +3,7 @@ use std::ffi::OsStr;
 use std::fmt::Display;
 
 pub mod github;
+pub(crate) mod octokit; //private module, move this to a separate lib someday and open-source.
 
 pub trait Backend {
     fn resolve_release(
