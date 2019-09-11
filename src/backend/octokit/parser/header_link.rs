@@ -10,6 +10,9 @@ use nom::{AsBytes, IResult};
 use reqwest::Url;
 use std::str::{from_utf8, FromStr};
 
+/// Parses a Link HTTP Header
+/// Link headers look like this:
+///     <https://api.github.com/x/y/releases?page=1&per_page=5>; rel="next"
 pub fn link_header(s: &str) -> Result<LinkHeader, String> {
     match parse_link_header(s.as_bytes()) {
         Ok((_, l)) => Ok(l),
@@ -39,10 +42,10 @@ named_attr!(#[doc="Parser a link-header"],
         ws!(tag!(";")) >>
         args: separated_list!(ws!(tag(";")), parse_argument) >>
         ((LinkHeader {
-            url: url.to_string(),
             page: get_param(&url, "page").unwrap(),
             per_page: get_param(&url, "per_page").unwrap(),
             rel: get_arg(args, "rel").unwrap(),
+            url: url,
         }))
     ));
 
@@ -86,18 +89,29 @@ mod test {
 
     #[test]
     fn test_parse_header_link() {
-        let links = vec![
-            &b"<https://api.github.com/repositories/x/releases?page=1&per_page=5>; rel=\"first\""[..],
-            &b"<https://api.github.com/repositories/x/releases?page=1&per_page=5>; rel=\"first\"; bla=\"second\""[..],
-            &b"<https://api.github.com/repositories/x/releases?page=1&per_page=5>; test=\"raar\"; rel=\"first\"; bla=\"second\""[..],
-        ];
+        let links = vec![(
+            "<https://api.github.com/repositories/x/releases?page=1&per_page=5>; rel=\"first\"",
+            LinkHeader {
+                url: Url::parse("https://api.github.com/repositories/x/releases?page=1&per_page=5")
+                    .unwrap(),
+                page: 1,
+                per_page: 5,
+                rel: LinkHeaderType::First,
+            },
+        ), (
+            "<https://api.github.com/repositories/x/releases?page=2&per_page=5>; test=\"raar\"; rel=\"next\"",
+            LinkHeader {
+                url: Url::parse("https://api.github.com/repositories/x/releases?page=2&per_page=5")
+                    .unwrap(),
+                page: 2,
+                per_page: 5,
+                rel: LinkHeaderType::Next,
+            }
+            )];
 
-        for link in links {
-            println!("======================================================");
-            println!("Testing link: {}", from_utf8(link).unwrap());
-            let (rem, res) = parse_link_header(link).unwrap();
-            println!("{:?}, {:?}", std::str::from_utf8(rem).unwrap(), res);
-            println!("======================================================");
+        for (link, expect) in links {
+            let (rem, res) = parse_link_header(link.as_bytes()).unwrap();
+            assert_eq!(res, expect);
         }
     }
 }

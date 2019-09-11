@@ -1,8 +1,9 @@
+use reqwest::Url;
 use std::str::FromStr;
 
 mod parser;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum LinkHeaderType {
     Prev,
     Next,
@@ -31,9 +32,9 @@ impl FromStr for LinkHeaderType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct LinkHeader {
-    pub url: String,
+    pub url: Url,
     pub page: u32,
     pub per_page: u32,
     pub rel: LinkHeaderType,
