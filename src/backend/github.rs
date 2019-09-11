@@ -2,7 +2,7 @@ use crate::backend::{Backend, Release};
 use crate::{Platform, Version};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub struct Config {
     pub repository: String,
