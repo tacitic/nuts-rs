@@ -10,9 +10,9 @@ use rocket::response::content::Json;
 use rocket::State;
 use serde::{Deserialize, Serialize};
 
-use nuts_rs::backend::github::{self, Github};
-use nuts_rs::backend::{Backend, Release};
-use nuts_rs::{ApiToken, Config, Platform, Version};
+use nuts::backend::github::{self, Github};
+use nuts::backend::{Backend, Release};
+use nuts::{ApiToken, Config, Platform, Version};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateResponse {

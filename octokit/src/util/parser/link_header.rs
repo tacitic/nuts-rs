@@ -1,19 +1,13 @@
-use crate::backend::octokit::{LinkHeader, LinkHeaderType};
-use nom::branch::alt;
-use nom::bytes::complete::{tag, take_until};
-use nom::character::complete::anychar;
-use nom::character::complete::{alphanumeric0, alphanumeric1};
-use nom::multi::separated_list;
-use nom::multi::{many0, many1};
-use nom::sequence::{delimited, separated_pair};
-use nom::{AsBytes, IResult};
+use crate::util::pagination::LinkHeader;
+use nom::bytes::complete::tag;
+use nom::character::complete::alphanumeric1;
 use reqwest::Url;
 use std::str::{from_utf8, FromStr};
 
 /// Parses a Link HTTP Header
 /// Link headers look like this:
 ///     <https://api.github.com/x/y/releases?page=1&per_page=5>; rel="next"
-pub fn link_header(s: &str) -> Result<LinkHeader, String> {
+pub(crate) fn link_header(s: &str) -> Result<LinkHeader, String> {
     match parse_link_header(s.as_bytes()) {
         Ok((_, l)) => Ok(l),
         Err(_) => Err("could not parse link-header".to_string()),
@@ -22,9 +16,9 @@ pub fn link_header(s: &str) -> Result<LinkHeader, String> {
 
 named_attr!(#[doc="Parses an encapsulated <url> in a link-header"],
     parse_url<&[u8], Url>, do_parse!(
-        tag!("<") >>
+        ws!(tag!("<")) >>
         url: ws!(take_until!(">")) >>
-        tag!(">") >>
+        ws!(tag!(">")) >>
         ((Url::parse(from_utf8(url).unwrap()).unwrap()))
     ));
 
@@ -70,21 +64,23 @@ fn get_arg<T: FromStr>(args: Vec<(&str, &str)>, key: &str) -> Option<T> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use nom::AsBytes;
+    use crate::util::pagination::LinkHeaderType;
 
     #[test]
     fn test_parse_argument() {
-        let arg = &b"rel=\"raar\""[..];
-        let (rem, res) = parse_argument(arg).unwrap();
-        println!("{:?}", res);
+        let arg = &b"rel=\"thing\""[..];
+        let (_, res) = parse_argument(arg).unwrap();
+        assert_eq!(res, ("rel", "thing"));
     }
 
     #[test]
     fn test_parse_url() {
         let link = &b"<https://api.github.com/repositories/x/releases?page=1&per_page=5>"[..];
-
-        let (rem, res) = parse_url(link).unwrap();
-        println!("{:?}, {:?}", std::str::from_utf8(rem).unwrap(), res);
+        let (_, res) = parse_url(link).unwrap();
+        assert_eq!(
+            Url::parse("https://api.github.com/repositories/x/releases?page=1&per_page=5").unwrap(),
+            res
+        );
     }
 
     #[test]
@@ -110,7 +106,7 @@ mod test {
             )];
 
         for (link, expect) in links {
-            let (rem, res) = parse_link_header(link.as_bytes()).unwrap();
+            let (_, res) = parse_link_header(link.as_bytes()).unwrap();
             assert_eq!(res, expect);
         }
     }
