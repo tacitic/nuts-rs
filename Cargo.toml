@@ -2,4 +2,5 @@
 members = [
     "nuts",
     "octokit",
+    "signed-urls"
 ]

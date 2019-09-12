@@ -9,7 +9,7 @@ use std::io::{Cursor, Read};
 use std::path::PathBuf;
 use std::{env, fs, io};
 
-use reqwest::Response;
+use reqwest::{Response, Url};
 use rocket::request::FromParam;
 use rocket::response::content::Json;
 use rocket::response::{NamedFile, Stream};
@@ -17,9 +17,11 @@ use rocket::State;
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 
+use failure::Error;
 use nuts::backend::github::{self, Github, GithubRelease};
 use nuts::backend::{Backend, Release};
 use nuts::{ApiToken, Config, Platform, Version};
+use std::time::SystemTime;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateResponse {
