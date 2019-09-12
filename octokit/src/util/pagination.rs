@@ -19,6 +19,12 @@ pub fn paginate(
             .query(&[("page", page), ("per_page", per_page)])
             .send()?;
 
+        if !res.status().is_success() {
+            pager = None;
+            println!("non 200 status code returned");
+            unimplemented!()
+        }
+
         let lh = LinkHeaders::new(res.headers());
         match LinkHeaders::new(res.headers()) {
             Some(lh) => {

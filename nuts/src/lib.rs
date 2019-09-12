@@ -2,10 +2,6 @@ use crate::backend::Release;
 use rocket::http::{RawStr, Status};
 use rocket::request::{self, FromParam, FromRequest};
 use rocket::{Outcome, Request};
-use serde::{Deserialize, Serialize};
-
-#[macro_use]
-extern crate nom;
 
 pub mod backend;
 
@@ -23,6 +19,7 @@ impl Platform {
             || name.contains("osx")
             || name.contains("darwin")
             || name.ends_with(".dmg")
+            || name.ends_with(".dmg.blockmap")
         {
             return Self::MacOS;
         }
@@ -33,6 +30,7 @@ impl Platform {
             || name.ends_with(".rpm")
             || name.ends_with(".tgz")
             || name.ends_with(".tar.gz")
+            || name.ends_with(".AppImage")
         {
             return Self::Linux;
         }

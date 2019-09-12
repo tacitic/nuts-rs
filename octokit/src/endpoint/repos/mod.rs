@@ -1,3 +1,3 @@
 mod releases;
 
-pub use releases::list_releases;
+pub use releases::{download_asset, list_releases};

@@ -696,6 +696,7 @@ dependencies = [
 name = "nuts"
 version = "0.1.0"
 dependencies = [
+ "octokit 0.1.0",
  "reqwest 0.9.20 (registry+https://github.com/rust-lang/crates.io-index)",
  "rocket 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "semver 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",

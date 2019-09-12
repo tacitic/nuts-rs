@@ -3,16 +3,18 @@
 #[macro_use]
 extern crate rocket;
 
-use std::env;
+use std::{env, io};
 
 use rocket::request::FromParam;
 use rocket::response::content::Json;
 use rocket::State;
 use serde::{Deserialize, Serialize};
 
-use nuts::backend::github::{self, Github};
+use nuts::backend::github::{self, Github, GithubRelease};
 use nuts::backend::{Backend, Release};
 use nuts::{ApiToken, Config, Platform, Version};
+use reqwest::Response;
+use rocket::response::Stream;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateResponse {
@@ -36,13 +38,13 @@ fn main() {
     };
 
     let backend = Github::new(github::Config {
-        repository: cfg.github_repository.clone(),
-        access_token: cfg.github_access_token.clone(),
+        repo: cfg.github_repository,
+        token: Some(cfg.github_access_token),
     });
 
     rocket::ignite()
         .manage(backend)
-        .mount("/", routes![index, update])
+        .mount("/", routes![index, update, download])
         .launch();
 }
 
@@ -69,18 +71,17 @@ fn update(
     )
 }
 
-#[get("/download/<platform>/<version>")]
-fn download(platform: Platform, version: Version) -> &'static str {
-    "Download"
+#[get("/download/<filename>")]
+fn download(filename: String, backend: State<Github>) -> io::Result<Stream<Response>> {
+    let response = backend.download(filename).unwrap();
+    Ok(Stream::chunked(response, 10))
 }
 
 fn generate_download_url(release: Box<dyn Release>) -> String {
     format!(
-        "{scheme}://{host}/download/{platform}/{version}?file_type={file_type}",
+        "{scheme}://{host}/download/{filename}",
         scheme = "http",
         host = "localhost:8000",
-        platform = release.get_platform().to_string(),
-        version = release.get_version().inner_version().to_string(),
-        file_type = release.get_file_type().unwrap().to_string_lossy()
+        filename = release.get_filename().to_str().unwrap()
     )
 }

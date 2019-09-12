@@ -14,7 +14,7 @@ use reqwest::Url;
 use std::str::FromStr;
 
 mod config;
-mod endpoint;
+pub mod endpoint;
 pub(crate) mod util;
 
 pub use config::Config;

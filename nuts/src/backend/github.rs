@@ -1,84 +1,61 @@
 use crate::backend::{Backend, Release};
 use crate::{Platform, Version};
-use reqwest::Url;
+use reqwest::{Response, Url};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-#[derive(Debug)]
 pub struct Config {
-    pub repository: String,
-    pub access_token: String,
+    pub repo: String,
+    pub token: Option<String>,
 }
 
 pub struct Github {
-    base_url: Url,
-    config: Config,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ReleaseResponse {
-    id: u32,
-    url: String,
-    tag_name: String,
-    name: String,
-    draft: bool,
-    prerelease: bool,
-    assets: Vec<AssetResponse>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct AssetResponse {
-    url: String,
-    name: String,
-    content_type: String,
-    size: u32,
-    state: String,
+    repo: String,
+    config: octokit::Config,
 }
 
 impl Github {
     pub fn new(cfg: Config) -> Self {
         Github {
-            base_url: Url::parse("https://api.github.com").unwrap(),
-            config: cfg,
+            repo: cfg.repo,
+            config: octokit::Config {
+                auth: cfg.token,
+                ..octokit::Config::default()
+            },
         }
     }
 
-    // TODO: handle paging
     // TODO: error handling
-    fn get_releases(&self) -> Result<Vec<Box<dyn Release>>, String> {
-        let client = reqwest::Client::new();
-        let response = client
-            .get(
-                self.base_url
-                    .join(format!("/repos/{repo}/releases", repo = self.config.repository).as_str())
-                    .unwrap(),
-            )
-            .bearer_auth(&self.config.access_token)
-            .send();
-
-        match response {
-            Ok(mut res) => {
-                if !res.status().is_success() {
-                    println!("{:?}", res);
-                    return Err("unsuccessful response from github".to_string());
-                }
-                let releases: Vec<ReleaseResponse> = res.json().unwrap();
-
-                let mut out: Vec<Box<dyn Release>> = vec![];
-                for gh_release in releases {
-                    for gh_asset in gh_release.assets {
-                        out.push(Box::new(GithubRelease {
-                            platform: Platform::detect_from_filename(&gh_asset.name),
-                            version: Version::from(&gh_release.tag_name).unwrap(),
-                            file: PathBuf::from(gh_asset.name),
-                        }));
-                    }
-                }
-                Ok(out)
+    // TODO: this should be sorted on semver.
+    fn get_releases(&self) -> Result<Vec<GithubRelease>, String> {
+        let releases = octokit::endpoint::repos::list_releases(&self.config, &self.repo).unwrap();
+        let mut out = vec![];
+        for gh_release in releases {
+            for gh_asset in gh_release.assets {
+                out.push(GithubRelease {
+                    platform: Platform::detect_from_filename(&gh_asset.name),
+                    version: Version::from(&gh_release.tag_name).unwrap(),
+                    filename: PathBuf::from(gh_asset.name),
+                    download_url: gh_asset.url,
+                    asset_id: gh_asset.id,
+                });
             }
-            Err(e) => Err(e.to_string()),
         }
+
+        Ok(out)
+    }
+
+    fn get_release_by_predicate(
+        &self,
+        f: &dyn Fn(&GithubRelease) -> bool,
+    ) -> Result<GithubRelease, String> {
+        self.get_releases()
+            .unwrap()
+            .into_iter()
+            .filter(f)
+            .nth(0)
+            .ok_or("no compatible release found".to_string())
     }
 }
 
@@ -88,15 +65,31 @@ impl Backend for Github {
         platform: Platform,
         version: Version,
     ) -> Result<Box<dyn Release>, String> {
-        self.get_releases()
-            .unwrap()
-            .into_iter()
-            .filter(|x| {
-                *x.get_platform() == platform
-                    && *x.get_version().inner_version() > *version.inner_version()
+        self.get_release_by_predicate(&|x: &GithubRelease| {
+            *x.get_platform() == platform
+                && *x.get_version().inner_version() > *version.inner_version()
+        })
+        .map(|x| Box::new(x) as Box<dyn Release>)
+    }
+
+    fn get_release_by_filename(&self, filename: String) -> Result<Box<dyn Release>, String> {
+        self.get_release_by_predicate(&|x: &GithubRelease| {
+            *x.get_filename() == PathBuf::from(filename.as_str())
+        })
+        .map(|x| Box::new(x) as Box<dyn Release>)
+    }
+
+    fn download(&self, filename: String) -> Result<Response, String> {
+        let release = self
+            .get_release_by_predicate(&|x: &GithubRelease| {
+                *x.get_filename() == PathBuf::from(filename.as_str())
             })
-            .nth(0)
-            .ok_or("no compatible release found".to_string())
+            .unwrap();
+
+        Ok(
+            octokit::endpoint::repos::download_asset(&self.config, &self.repo, release.asset_id)
+                .unwrap(),
+        )
     }
 }
 
@@ -104,7 +97,9 @@ impl Backend for Github {
 pub struct GithubRelease {
     platform: Platform,
     version: Version,
-    file: PathBuf,
+    filename: PathBuf,
+    download_url: String,
+    asset_id: u32,
 }
 
 impl Release for GithubRelease {
@@ -116,7 +111,7 @@ impl Release for GithubRelease {
         &self.version
     }
 
-    fn get_file_type(&self) -> Option<&OsStr> {
-        self.file.extension()
+    fn get_filename(&self) -> &PathBuf {
+        &self.filename
     }
 }

@@ -4,65 +4,65 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Release {
-    url: String,
-    assets_url: String,
-    upload_url: String,
-    html_url: String,
-    id: u32,
-    node_id: String,
-    author: User,
-    tag_name: String,
-    target_commitish: String,
-    name: String,
-    draft: bool,
-    prerelease: bool,
-    created_at: String,
-    published_at: String,
-    assets: Vec<Asset>,
+    pub url: String,
+    pub assets_url: String,
+    pub upload_url: String,
+    pub html_url: String,
+    pub id: u32,
+    pub node_id: String,
+    pub author: User,
+    pub tag_name: String,
+    pub target_commitish: String,
+    pub name: String,
+    pub draft: bool,
+    pub prerelease: bool,
+    pub created_at: String,
+    pub published_at: String,
+    pub assets: Vec<Asset>,
 }
 
 // TODO: move User to more general place.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct User {
-    login: String,
-    id: u32,
-    node_id: String,
-    avatar_url: String,
-    gravatar_id: String,
-    url: String,
-    html_url: String,
-    followers_url: String,
-    following_url: String,
-    gists_url: String,
-    starred_url: String,
-    subscriptions_url: String,
-    organizations_url: String,
-    repos_url: String,
-    events_url: String,
-    received_events_url: String,
-    site_admin: bool,
+    pub login: String,
+    pub id: u32,
+    pub node_id: String,
+    pub avatar_url: String,
+    pub gravatar_id: String,
+    pub url: String,
+    pub html_url: String,
+    pub followers_url: String,
+    pub following_url: String,
+    pub gists_url: String,
+    pub starred_url: String,
+    pub subscriptions_url: String,
+    pub organizations_url: String,
+    pub repos_url: String,
+    pub events_url: String,
+    pub received_events_url: String,
+    pub site_admin: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Asset {
-    url: String,
-    id: u32,
-    node_id: String,
-    name: String,
-    label: String,
-    uploader: User,
-    content_type: String,
-    state: String,
-    size: u32,
-    download_count: u32,
-    created_at: String,
-    updated_at: String,
-    browser_download_url: String,
+    pub url: String,
+    pub id: u32,
+    pub node_id: String,
+    pub name: String,
+    pub label: String,
+    pub uploader: User,
+    pub content_type: String,
+    pub state: String,
+    pub size: u32,
+    pub download_count: u32,
+    pub created_at: String,
+    pub updated_at: String,
+    pub browser_download_url: String,
 }
 
 pub fn list_releases(cfg: &Config, repo: &str) -> Result<Vec<Release>, String> {
     let b = util::get_request_builder(&cfg, Method::GET, format!("/repos/{}/releases", repo));
-    let responses = util::paginate(&b, 1, 5).unwrap();
+    let responses = util::paginate(&b, 1, 30).unwrap();
 
     let json: Vec<Vec<Release>> = responses
         .into_iter()
@@ -70,4 +70,16 @@ pub fn list_releases(cfg: &Config, repo: &str) -> Result<Vec<Release>, String> {
         .collect();
 
     Ok(json.into_iter().flatten().collect())
+}
+
+pub fn download_asset(cfg: &Config, repo: &str, asset_id: u32) -> Result<Response, String> {
+    let b = util::get_request_builder(
+        &cfg,
+        Method::GET,
+        format!("/repos/{}/releases/assets/{}", repo, asset_id),
+    );
+
+    Ok(b.header("Accept", "application/octet-stream")
+        .send()
+        .unwrap())
 }
