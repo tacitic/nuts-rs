@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate rocket;
 
-use std::{env, io};
+use std::{env, fs, io};
 
 use rocket::request::FromParam;
 use rocket::response::content::Json;
@@ -14,7 +14,12 @@ use nuts::backend::github::{self, Github, GithubRelease};
 use nuts::backend::{Backend, Release};
 use nuts::{ApiToken, Config, Platform, Version};
 use reqwest::Response;
-use rocket::response::Stream;
+use rocket::response::{NamedFile, Stream};
+use std::fs::File;
+use std::io::prelude::*;
+use std::io::{Cursor, Read};
+use std::path::PathBuf;
+use tempfile::NamedTempFile;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateResponse {
@@ -38,8 +43,8 @@ fn main() {
     };
 
     let backend = Github::new(github::Config {
-        repo: cfg.github_repository,
-        token: Some(cfg.github_access_token),
+        repo: cfg.github_repository.clone(),
+        token: Some(cfg.github_access_token.clone()),
     });
 
     rocket::ignite()
@@ -71,10 +76,61 @@ fn update(
     )
 }
 
+//#[get("/download/<filename>")]
+//fn download(filename: String, backend: State<Github>) -> io::Result<Stream<Response>> {
+//    let response = backend.download(filename).unwrap();
+//    Ok(Stream::chunked(response, 10))
+//}
+
+// XXX(@czyk): Download as stream including correct Headers.
+//#[get("/download/<filename>")]
+//fn download(filename: String, backend: State<Github>) -> io::Result<rocket::Response> {
+//    let mut response = backend.download(filename.clone()).unwrap();
+//
+//    let mut file = File::create(filename).unwrap();
+//
+//    io::copy(&mut response, &mut file);
+//
+//    rocket::Response::build()
+//        .raw_header(
+//            reqwest::header::CONTENT_LENGTH.as_str(),
+//            format!("{}", response.content_length().unwrap_or_default()),
+//        )
+//        .raw_header(
+//            reqwest::header::CONTENT_TYPE.as_str(),
+//            response
+//                .headers()
+//                .get(reqwest::header::CONTENT_TYPE.as_str())
+//                .unwrap()
+//                .to_str()
+//                .unwrap_or_default()
+//                .to_string(),
+//        )
+//        .streamed_body(file)
+//        .ok()
+//}
+
+// XXX(@czyk): Download as NamedFile (cached) including correct Headers.
 #[get("/download/<filename>")]
-fn download(filename: String, backend: State<Github>) -> io::Result<Stream<Response>> {
-    let response = backend.download(filename).unwrap();
-    Ok(Stream::chunked(response, 10))
+fn download(filename: String, backend: State<Github>) -> io::Result<NamedFile> {
+    let mut cache_path = std::env::temp_dir();
+    cache_path.push(filename.clone());
+
+    if fs::metadata(&cache_path).is_err() {
+        let mut tmp_file = NamedTempFile::new()?;
+
+        println!("{:?}", tmp_file.path());
+
+        backend
+            .download(filename.as_str())
+            .unwrap()
+            .copy_to(&mut tmp_file)
+            .unwrap();
+
+        std::fs::rename(tmp_file.path(), &cache_path)?;
+    }
+
+    NamedFile::open(&cache_path)
 }
 
 fn generate_download_url(release: Box<dyn Release>) -> String {

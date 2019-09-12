@@ -79,10 +79,10 @@ impl Backend for Github {
         .map(|x| Box::new(x) as Box<dyn Release>)
     }
 
-    fn download(&self, filename: String) -> Result<Response, String> {
+    fn download(&self, filename: &str) -> Result<Response, String> {
         let release = self
             .get_release_by_predicate(&|x: &GithubRelease| {
-                *x.get_filename() == PathBuf::from(filename.as_str())
+                *x.get_filename() == PathBuf::from(filename)
             })
             .unwrap();
 

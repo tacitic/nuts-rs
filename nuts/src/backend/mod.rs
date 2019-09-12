@@ -15,7 +15,7 @@ pub trait Backend {
 
     fn get_release_by_filename(&self, filename: String) -> Result<Box<dyn Release>, String>;
 
-    fn download(&self, filename: String) -> Result<Response, String>;
+    fn download(&self, filename: &str) -> Result<Response, String>;
 }
 
 pub trait Release {
