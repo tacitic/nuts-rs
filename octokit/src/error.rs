@@ -4,7 +4,7 @@ use std::fmt;
 /// The specific kind of error that can occur.
 #[derive(Clone, Eq, PartialEq, Debug, Fail)]
 pub enum ErrorKind {
-    /// A raar error
+    /// A serialization / deserialization error
     #[fail(display = "Serialization error: {}", _0)]
     SerdeError(String),
     /// An unknown error.
