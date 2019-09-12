@@ -34,7 +34,7 @@ impl Github {
         for gh_release in releases {
             for gh_asset in gh_release.assets {
                 out.push(GithubRelease {
-                    platform: Platform::detect_from_filename(&gh_asset.name),
+                    platform: Platform::detect_from_filename(&gh_asset.name)?,
                     version: Version::from(&gh_release.tag_name)?,
                     filename: PathBuf::from(gh_asset.name),
                     download_url: gh_asset.url,

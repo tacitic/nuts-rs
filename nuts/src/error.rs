@@ -10,6 +10,9 @@ pub enum ErrorKind {
     /// Unsupported platform
     #[fail(display = "Unsupported platform {}", _0)]
     UnsupportedPlatform(String),
+    /// Unknown platform
+    #[fail(display = "Unknown platform {}", _0)]
+    UnknownPlatform(String),
     /// An unknown error.
     #[fail(display = "An unknown error occurred.")]
     Unknown,

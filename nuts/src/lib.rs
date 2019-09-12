@@ -1,3 +1,4 @@
+use failure::{AsFail, Error};
 use rocket::http::{RawStr, Status};
 use rocket::request::{self, FromParam, FromRequest};
 use rocket::{Outcome, Request};
@@ -6,23 +7,27 @@ pub mod backend;
 pub(crate) mod error;
 pub(crate) use error::ErrorKind;
 
+#[macro_use]
+extern crate failure;
+
+/// Represents the platform where updates are available for.
 #[derive(Debug, PartialEq)]
 pub enum Platform {
     MacOS,
     Windows,
     Linux,
-    Unknown(String),
 }
 
 impl Platform {
-    pub fn detect_from_filename(name: &str) -> Self {
+    /// Detects a platform from a given filename
+    pub fn detect_from_filename(name: &str) -> Result<Self, ErrorKind> {
         if name.contains("mac")
             || name.contains("osx")
             || name.contains("darwin")
             || name.ends_with(".dmg")
             || name.ends_with(".dmg.blockmap")
         {
-            return Self::MacOS;
+            return Ok(Self::MacOS);
         }
 
         if name.contains("linux")
@@ -33,16 +38,14 @@ impl Platform {
             || name.ends_with(".tar.gz")
             || name.ends_with(".AppImage")
         {
-            return Self::Linux;
+            return Ok(Self::Linux);
         }
 
         if name.contains("win") || name.ends_with(".exe") {
-            return Self::Windows;
+            return Ok(Self::Windows);
         }
 
-        println!("cannot detect platform for {}", name);
-
-        return Self::Unknown(name.to_string());
+        Err(ErrorKind::UnknownPlatform(name.to_string()))
     }
 }
 
@@ -52,7 +55,6 @@ impl ToString for Platform {
             Platform::MacOS => "osx".to_string(),
             Platform::Windows => "win".to_string(),
             Platform::Linux => "linux".to_string(),
-            Platform::Unknown(_) => "unknown".to_string(),
         }
     }
 }
@@ -91,7 +93,6 @@ fn is_valid_auth_token(token: &str) -> bool {
     true
 }
 
-// TODO(rharink): Should we use it like this? we might have to relay all of semver::Version's methods
 #[derive(Debug)]
 pub struct Version(semver::Version);
 
@@ -135,9 +136,7 @@ impl<'a> FromParam<'a> for Platform {
             return Ok(Platform::MacOS);
         }
 
-        Err(failure::Error::from(ErrorKind::UnsupportedPlatform(
-            platform,
-        )))
+        bail!("Unsupported platform")
     }
 }
 
@@ -164,7 +163,7 @@ mod test {
         ];
 
         for (filename, expect) in tests {
-            assert_eq!(Platform::detect_from_filename(filename), expect);
+            assert_eq!(Platform::detect_from_filename(filename).unwrap(), expect);
         }
     }
 
