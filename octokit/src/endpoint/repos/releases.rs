@@ -1,6 +1,9 @@
+use crate::error::ErrorKind;
 use crate::{util, Config};
+use failure::Error;
 use reqwest::{Client, Method, RequestBuilder, Response};
 use serde::{Deserialize, Serialize};
+use std::io;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Release {
@@ -60,26 +63,30 @@ pub struct Asset {
     pub browser_download_url: String,
 }
 
-pub fn list_releases(cfg: &Config, repo: &str) -> Result<Vec<Release>, String> {
+pub fn list_releases(cfg: &Config, repo: &str) -> Result<Vec<Release>, Error> {
     let b = util::get_request_builder(&cfg, Method::GET, format!("/repos/{}/releases", repo));
-    let responses = util::paginate(&b, 1, 30).unwrap();
-
-    let json: Vec<Vec<Release>> = responses
-        .into_iter()
-        .map(|mut r| r.json().unwrap())
-        .collect();
-
-    Ok(json.into_iter().flatten().collect())
+    let responses = util::paginate(&b, 1, 30)?;
+    let json: Result<Vec<Vec<Release>>, _> = responses.into_iter().map(map_release).collect();
+    match json {
+        Ok(x) => Ok(x.into_iter().flatten().collect()),
+        Err(e) => Err(Error::from(e)),
+    }
 }
 
-pub fn download_asset(cfg: &Config, repo: &str, asset_id: u32) -> Result<Response, String> {
+pub fn download_asset(cfg: &Config, repo: &str, asset_id: u32) -> Result<Response, Error> {
     let b = util::get_request_builder(
         &cfg,
         Method::GET,
         format!("/repos/{}/releases/assets/{}", repo, asset_id),
     );
 
-    Ok(b.header("Accept", "application/octet-stream")
-        .send()
-        .unwrap())
+    let x = b.header("Accept", "application/octet-stream").send()?;
+    Ok(x)
+}
+
+fn map_release(mut r: Response) -> Result<Vec<Release>, Error> {
+    match r.json() {
+        Ok(x) => Ok(x),
+        Err(e) => Err(Error::from(e)),
+    }
 }

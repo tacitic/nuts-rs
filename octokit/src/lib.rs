@@ -15,6 +15,7 @@ use std::str::FromStr;
 
 mod config;
 pub mod endpoint;
+pub(crate) mod error;
 pub(crate) mod util;
 
 pub use config::Config;

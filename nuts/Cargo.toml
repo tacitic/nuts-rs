@@ -14,3 +14,4 @@ serde_json = "1.0"
 reqwest = "0.9.20"
 octokit = { path = "../octokit" }
 tempfile = "3.1.0"
+failure = "0.1.5"

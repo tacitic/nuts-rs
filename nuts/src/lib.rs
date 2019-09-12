@@ -1,9 +1,10 @@
-use crate::backend::Release;
 use rocket::http::{RawStr, Status};
 use rocket::request::{self, FromParam, FromRequest};
 use rocket::{Outcome, Request};
 
 pub mod backend;
+pub(crate) mod error;
+pub(crate) use error::ErrorKind;
 
 #[derive(Debug, PartialEq)]
 pub enum Platform {
@@ -124,19 +125,19 @@ impl<'a> FromParam<'a> for Version {
     }
 }
 
-// TODO(rharink): Error handling
-// TODO(rharink): Handle errors, do not use unwrap in lib code!
 impl<'a> FromParam<'a> for Platform {
-    type Error = String;
+    type Error = failure::Error;
 
     fn from_param(param: &'a RawStr) -> Result<Self, Self::Error> {
-        let platform = param.percent_decode().unwrap().to_lowercase();
+        let platform = param.percent_decode()?.to_lowercase();
 
         if platform.contains("darwin") || platform.contains("mac") || platform.contains("osx") {
             return Ok(Platform::MacOS);
         }
 
-        return Err("supports only macOS, for now...".to_string());
+        Err(failure::Error::from(ErrorKind::UnsupportedPlatform(
+            platform,
+        )))
     }
 }
 

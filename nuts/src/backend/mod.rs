@@ -1,7 +1,6 @@
 use crate::{Platform, Version};
+use failure::Error;
 use reqwest::Response;
-use std::ffi::OsStr;
-use std::fmt::Display;
 use std::path::PathBuf;
 
 pub mod github;
@@ -11,11 +10,11 @@ pub trait Backend {
         &self,
         platform: Platform,
         version: Version,
-    ) -> Result<Box<dyn Release>, String>;
+    ) -> Result<Box<dyn Release>, Error>;
 
-    fn get_release_by_filename(&self, filename: String) -> Result<Box<dyn Release>, String>;
+    fn get_release_by_filename(&self, filename: String) -> Result<Box<dyn Release>, Error>;
 
-    fn download(&self, filename: &str) -> Result<Response, String>;
+    fn download(&self, filename: &str) -> Result<Response, Error>;
 }
 
 pub trait Release {
