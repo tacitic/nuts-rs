@@ -6,10 +6,8 @@ use rocket::{Outcome, Request, State};
 
 pub mod backend;
 pub(crate) mod error;
-use crate::backend::Release;
 pub(crate) use error::ErrorKind;
-use signed_urls::{sign_url, validate};
-use std::time;
+use signed_urls::validate;
 
 #[macro_use]
 extern crate failure;

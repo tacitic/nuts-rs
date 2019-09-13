@@ -16,6 +16,7 @@ use tempfile::NamedTempFile;
 use nuts::backend::github::{self, Github};
 use nuts::backend::{Backend, Release};
 use nuts::{ApiToken, Config, Host, Platform, Scheme, Signature, Version};
+use rocket::config::Environment;
 use signed_urls::sign_url;
 
 /// Returned by a request to /update
@@ -46,7 +47,14 @@ fn main() {
         token: Some(cfg.github_access_token.clone()),
     });
 
-    rocket::ignite()
+    // TODO: make configurable
+    let rocket_config = rocket::Config::build(Environment::Staging)
+        .address("0.0.0.0")
+        .port(8000)
+        .finalize()
+        .unwrap();
+
+    rocket::custom(rocket_config)
         .manage(backend)
         .manage(cfg)
         .mount("/", routes![index, update, download])
