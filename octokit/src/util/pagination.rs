@@ -21,8 +21,7 @@ pub fn paginate(
 
         if !res.status().is_success() {
             pager = None;
-            println!("non 200 status code returned");
-            unimplemented!()
+            panic!("non 200 status code returned {:?}", res);
         }
 
         let lh = LinkHeaders::new(res.headers());

@@ -1,11 +1,13 @@
 use failure::{AsFail, Error};
 use rocket::http::{RawStr, Status};
 use rocket::request::{self, FromParam, FromRequest};
-use rocket::{Outcome, Request};
+use rocket::{Outcome, Request, State};
 
 pub mod backend;
 pub(crate) mod error;
 pub(crate) use error::ErrorKind;
+use serde_json::to_string;
+use signed_urls::validate;
 
 #[macro_use]
 extern crate failure;
@@ -62,7 +64,9 @@ impl ToString for Platform {
 #[derive(Debug)]
 pub struct Config {
     /// Used to control access to the /update endpoint
-    pub jwt_secret: String,
+    pub secret_token: Option<String>,
+
+    pub url_signature_secret: Option<String>,
 
     /// <username>/<repo>
     pub github_repository: String,
@@ -72,25 +76,83 @@ pub struct Config {
 }
 
 #[derive(Debug)]
-pub struct ApiToken(String);
+pub struct ApiToken();
 
 impl FromRequest<'_, '_> for ApiToken {
     type Error = String;
 
     fn from_request(request: &Request<'_>) -> request::Outcome<Self, Self::Error> {
-        let keys: Vec<_> = request.headers().get("Authorization").collect();
-        match keys.len() {
-            0 => Outcome::Failure((Status::BadRequest, "Missing bearer token".to_string())),
-            1 if is_valid_auth_token(keys[0]) => Outcome::Success(ApiToken(keys[0].to_string())),
-            1 => Outcome::Failure((Status::Unauthorized, "Unauthorized".to_string())),
-            _ => Outcome::Failure((Status::Unauthorized, "Unauthorized".to_string())),
+        let config = request.guard::<State<Config>>().unwrap();
+        if let Some(secret) = &config.secret_token {
+            let keys: Vec<_> = request.headers().get("Authorization").collect();
+            return match keys.len() {
+                0 => Outcome::Failure((Status::BadRequest, "Missing bearer token".to_string())),
+                1 if is_valid_auth_token(keys[0], secret) => Outcome::Success(ApiToken()),
+                1 => Outcome::Failure((Status::Unauthorized, "Unauthorized".to_string())),
+                _ => Outcome::Failure((Status::Unauthorized, "Unauthorized".to_string())),
+            };
         }
+
+        Outcome::Success(ApiToken())
     }
 }
 
-// TODO(rharink): Implement token authentication
-fn is_valid_auth_token(token: &str) -> bool {
-    true
+#[derive(Debug)]
+pub struct Signature();
+
+impl FromRequest<'_, '_> for Signature {
+    type Error = String;
+
+    fn from_request(request: &Request<'_>) -> request::Outcome<Self, Self::Error> {
+        let config = request.guard::<State<Config>>().unwrap();
+        let host = get_host(&request).expect("host not found");
+        let scheme = get_scheme(&request);
+
+        let url = format!(
+            "{scheme}://{host}{uri}",
+            scheme = scheme,
+            host = host,
+            uri = request.uri().to_string()
+        );
+
+        if let Some(secret) = &config.url_signature_secret {
+            return match validate(&secret, &url) {
+                Ok(_) => Outcome::Success(Signature()),
+                Err(_) => Outcome::Failure((Status::Unauthorized, "Invalid signature".to_string())),
+            };
+        }
+
+        Outcome::Success(Signature())
+    }
+}
+
+fn get_host(req: &Request) -> Option<String> {
+    if let Some(h) = req.headers().get_one("X-Forwarded-Host") {
+        return Some(h.to_string());
+    }
+
+    req.headers().get_one("Host").map(|x| x.to_string())
+}
+
+fn get_scheme(req: &Request) -> String {
+    if let Some(s) = req.headers().get_one("X-Forwarded-Proto") {
+        return s.to_string();
+    }
+
+    req.headers()
+        .get_one("Scheme")
+        .unwrap_or("http")
+        .to_string()
+}
+
+// TODO(rharink): Implement better token authentication
+fn is_valid_auth_token(header: &str, secret: &str) -> bool {
+    if header.starts_with("Bearer") {
+        let bearer_token = &header[7..];
+        return bearer_token == secret;
+    }
+
+    return false;
 }
 
 #[derive(Debug)]

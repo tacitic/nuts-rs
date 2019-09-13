@@ -7,8 +7,9 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::{Cursor, Read};
 use std::path::PathBuf;
-use std::{env, fs, io};
+use std::{env, fs, io, time};
 
+use failure::Error;
 use reqwest::{Response, Url};
 use rocket::request::FromParam;
 use rocket::response::content::Json;
@@ -17,11 +18,10 @@ use rocket::State;
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 
-use failure::Error;
 use nuts::backend::github::{self, Github, GithubRelease};
 use nuts::backend::{Backend, Release};
-use nuts::{ApiToken, Config, Platform, Version};
-use std::time::SystemTime;
+use nuts::{ApiToken, Config, Platform, Signature, Version};
+use signed_urls::sign_url;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateResponse {
@@ -39,9 +39,10 @@ impl UpdateResponse {
 
 fn main() {
     let cfg = Config {
-        jwt_secret: env::var("JWT_SECRET").unwrap_or_default(),
-        github_repository: env::var("GITHUB_REPOSITORY").unwrap_or_default(),
-        github_access_token: env::var("GITHUB_TOKEN").unwrap_or_default(),
+        secret_token: Some(env::var("NUTS_SECRET_TOKEN").unwrap_or_default()),
+        url_signature_secret: Some(env::var("NUTS_URL_SIGNATURE_SECRET").unwrap_or_default()),
+        github_repository: env::var("NUTS_GITHUB_REPOSITORY").unwrap_or_default(),
+        github_access_token: env::var("NUTS_GITHUB_TOKEN").unwrap_or_default(),
     };
 
     let backend = Github::new(github::Config {
@@ -51,6 +52,7 @@ fn main() {
 
     rocket::ignite()
         .manage(backend)
+        .manage(cfg)
         .mount("/", routes![index, update, download])
         .launch();
 }
@@ -72,14 +74,18 @@ fn update(
 
     Json(
         serde_json::to_string(&UpdateResponse {
-            url: generate_download_url(release),
+            url: generate_download_url(release).unwrap(),
         })
         .unwrap(),
     )
 }
 
 #[get("/download/<filename>")]
-fn download(filename: String, backend: State<Github>) -> io::Result<NamedFile> {
+fn download(
+    filename: String,
+    backend: State<Github>,
+    _signature: Signature,
+) -> io::Result<NamedFile> {
     let mut cache_path = std::env::temp_dir();
     cache_path.push(filename.as_str());
 
@@ -97,11 +103,14 @@ fn download(filename: String, backend: State<Github>) -> io::Result<NamedFile> {
     NamedFile::open(&cache_path)
 }
 
-fn generate_download_url(release: Box<dyn Release>) -> String {
-    format!(
+fn generate_download_url(release: Box<dyn Release>) -> Result<String, Error> {
+    let url = format!(
         "{scheme}://{host}/download/{filename}",
         scheme = "http",
         host = "localhost:8000",
         filename = release.get_filename().to_str().unwrap()
-    )
+    );
+
+    let exp = time::SystemTime::now() + time::Duration::from_secs(60);
+    sign_url("supersecret", url.as_str(), exp)
 }
