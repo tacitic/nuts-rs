@@ -1,18 +1,23 @@
-use failure::{AsFail, Error};
+#![feature(proc_macro_hygiene, decl_macro)]
+
 use rocket::http::{RawStr, Status};
 use rocket::request::{self, FromParam, FromRequest};
 use rocket::{Outcome, Request, State};
 
 pub mod backend;
 pub(crate) mod error;
+use crate::backend::Release;
 pub(crate) use error::ErrorKind;
-use serde_json::to_string;
-use signed_urls::validate;
+use signed_urls::{sign_url, validate};
+use std::time;
 
 #[macro_use]
 extern crate failure;
 
-/// Represents the platform where updates are available for.
+#[macro_use]
+extern crate rocket;
+
+/// Represents a platform
 #[derive(Debug, PartialEq)]
 pub enum Platform {
     MacOS,
@@ -61,20 +66,23 @@ impl ToString for Platform {
     }
 }
 
+/// Configuation for Nuts
 #[derive(Debug)]
 pub struct Config {
-    /// Used to control access to the /update endpoint
+    /// Used to control access to the /update endpoint, only enforced when set.
     pub secret_token: Option<String>,
 
+    /// Used to control access to the /download endpoint, ony enforced when set.
     pub url_signature_secret: Option<String>,
 
-    /// <username>/<repo>
+    /// A Github repository in the form of '<username>/<repo>'
     pub github_repository: String,
 
-    /// Will be used to access private repositories.
+    /// Will be used to access private Github repositories.
     pub github_access_token: String,
 }
 
+/// ApiToken is a rocket guard  that is used in combination with the 'secret_token' config parameter.
 #[derive(Debug)]
 pub struct ApiToken();
 
@@ -97,6 +105,8 @@ impl FromRequest<'_, '_> for ApiToken {
     }
 }
 
+/// Signature is a rocket guard that is used in combination with the 'url_signature_secret'
+/// configuration option.
 #[derive(Debug)]
 pub struct Signature();
 
@@ -105,13 +115,13 @@ impl FromRequest<'_, '_> for Signature {
 
     fn from_request(request: &Request<'_>) -> request::Outcome<Self, Self::Error> {
         let config = request.guard::<State<Config>>().unwrap();
-        let host = get_host(&request).expect("host not found");
-        let scheme = get_scheme(&request);
+        let host = request.guard::<Host>().unwrap();
+        let scheme = request.guard::<Scheme>().unwrap();
 
         let url = format!(
             "{scheme}://{host}{uri}",
-            scheme = scheme,
-            host = host,
+            scheme = scheme.to_string(),
+            host = host.to_string(),
             uri = request.uri().to_string()
         );
 
@@ -126,6 +136,54 @@ impl FromRequest<'_, '_> for Signature {
     }
 }
 
+/// Host is a rocket guard that represents a hostname.
+pub struct Host(String);
+
+impl ToString for Host {
+    fn to_string(&self) -> String {
+        (&self).0.clone()
+    }
+}
+
+impl FromRequest<'_, '_> for Host {
+    type Error = String;
+
+    fn from_request(request: &Request<'_>) -> request::Outcome<Self, Self::Error> {
+        match get_host(&request) {
+            Some(host) => Outcome::Success(Host(host)),
+            None => Outcome::Failure((Status::BadRequest, "cannot determine hostname".to_string())),
+        }
+    }
+}
+
+/// Scheme is a rocket guard that represents a scheme
+pub enum Scheme {
+    Http,
+    Https,
+}
+
+impl ToString for Scheme {
+    fn to_string(&self) -> String {
+        match &self {
+            Scheme::Http => "http".to_string(),
+            Scheme::Https => "https".to_string(),
+        }
+    }
+}
+
+impl FromRequest<'_, '_> for Scheme {
+    type Error = String;
+
+    fn from_request(request: &Request<'_>) -> request::Outcome<Self, Self::Error> {
+        match get_scheme(&request).as_str() {
+            ("http") => Outcome::Success(Scheme::Http),
+            ("https") => Outcome::Success(Scheme::Https),
+            _ => Outcome::Failure((Status::BadRequest, "cannot determine scheme".to_string())),
+        }
+    }
+}
+
+/// Returns the host of the request.
 fn get_host(req: &Request) -> Option<String> {
     if let Some(h) = req.headers().get_one("X-Forwarded-Host") {
         return Some(h.to_string());
@@ -134,6 +192,7 @@ fn get_host(req: &Request) -> Option<String> {
     req.headers().get_one("Host").map(|x| x.to_string())
 }
 
+/// Returns the scheme of the request, respectful to the X-Forwarded-Proto header
 fn get_scheme(req: &Request) -> String {
     if let Some(s) = req.headers().get_one("X-Forwarded-Proto") {
         return s.to_string();
@@ -155,6 +214,7 @@ fn is_valid_auth_token(header: &str, secret: &str) -> bool {
     return false;
 }
 
+// TODO: docs
 #[derive(Debug)]
 pub struct Version(semver::Version);
 
@@ -171,6 +231,13 @@ impl Version {
 
     pub fn inner_version(&self) -> &semver::Version {
         &self.0
+    }
+
+    pub fn channel(&self) -> Option<String> {
+        self.inner_version().pre.first().map(|x| match x {
+            semver::Identifier::AlphaNumeric(x) => x.clone(),
+            semver::Identifier::Numeric(n) => n.to_string(),
+        })
     }
 }
 

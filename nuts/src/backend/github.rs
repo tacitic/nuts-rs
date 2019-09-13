@@ -69,6 +69,7 @@ impl Backend for Github {
     ) -> Result<Box<dyn Release>, Error> {
         self.get_release_by_predicate(&|x: &GithubRelease| {
             *x.get_platform() == platform
+                && x.get_version().channel() == version.channel()
                 && *x.get_version().inner_version() > *version.inner_version()
         })
         .map(|x| Box::new(x) as Box<dyn Release>)
