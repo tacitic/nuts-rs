@@ -16,5 +16,5 @@ deploy:
   - provider: script
     on:
       tags: true
-    script: 'docker build -it tacitic/nuts-rs:${TRAVIS_TAG} && docker push tacitic/nuts-rs:${TRAVIS_TAG}'
+    script: ./deploy.sh
     skip_cleanup: true
