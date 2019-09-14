@@ -1,0 +1,20 @@
+language: rust
+rust:
+  - nightly
+matrix:
+  fast_finish: true
+cache: cargo
+
+sudo: required
+services:
+  - docker
+
+script:
+  - cargo test --verbose --all
+
+deploy:
+  - provider: script
+    on:
+      tags: true
+    script: 'docker build -it tacitic/nuts-rs:${TRAVIS_TAG} && docker push tacitic/nuts-rs:${TRAVIS_TAG}'
+    skip_cleanup: true
