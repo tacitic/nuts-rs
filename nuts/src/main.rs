@@ -40,6 +40,7 @@ fn main() {
         url_signature_secret: env::var("NUTS_URL_SIGNATURE_SECRET").ok(),
         github_repository: env::var("NUTS_GITHUB_REPOSITORY").unwrap_or_default(),
         github_access_token: env::var("NUTS_GITHUB_TOKEN").unwrap_or_default(),
+        base_url: env::var("NUTS_BASE_URL").ok(),
     };
 
     let backend = Github::new(github::Config {
@@ -90,7 +91,6 @@ fn update(
 #[get("/download/<filename>")]
 fn download(
     filename: String,
-
     backend: State<Github>,
     _signature: Signature,
 ) -> io::Result<NamedFile> {
@@ -116,12 +116,19 @@ fn generate_download_url(
     cfg: &Config,
     release: Box<dyn Release>,
 ) -> Result<String, Error> {
-    let url = format!(
-        "{scheme}://{host}/download/{filename}",
-        scheme = scheme.to_string(),
-        host = host.to_string(),
-        filename = release.get_filename().to_str().unwrap()
-    );
+    let url = match &cfg.base_url {
+        Some(base_url) => format!(
+            "{base_url}/download/{filename}",
+            base_url = base_url,
+            filename = release.get_filename().to_str().unwrap()
+        ),
+        None => format!(
+            "{scheme}://{host}/download/{filename}",
+            scheme = scheme.to_string(),
+            host = host.to_string(),
+            filename = release.get_filename().to_str().unwrap()
+        ),
+    };
 
     if let Some(secret) = &cfg.url_signature_secret {
         let exp = time::SystemTime::now() + time::Duration::from_secs(60);
