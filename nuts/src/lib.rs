@@ -78,6 +78,9 @@ pub struct Config {
 
     /// Will be used to access private Github repositories.
     pub github_access_token: String,
+
+    /// Will be used to generate the download urls, if not set hostname and scheme is used.
+    pub base_url: Option<String>,
 }
 
 /// ApiToken is a rocket guard  that is used in combination with the 'secret_token' config parameter.
