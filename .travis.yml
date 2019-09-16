@@ -9,6 +9,10 @@ sudo: required
 services:
   - docker
 
+branches:
+  only:
+    - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
+
 script:
   - cargo test --verbose --all
 
