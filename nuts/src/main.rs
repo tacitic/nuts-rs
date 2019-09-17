@@ -15,7 +15,7 @@ use tempfile::NamedTempFile;
 
 use nuts::backend::github::{self, Github};
 use nuts::backend::{Backend, Release};
-use nuts::{ApiToken, Config, Host, Platform, Scheme, Signature, Version};
+use nuts::{ApiToken, BaseUrl, Config, Platform, Signature, Version};
 use rocket::config::Environment;
 use signed_urls::sign_url;
 
@@ -72,17 +72,16 @@ fn index() -> &'static str {
 fn update(
     platform: Platform,
     version: Version,
-    scheme: Scheme,
-    host: Host,
-    cfg: State<Config>,
-    _api_token: ApiToken,
+    base_url: BaseUrl,
+    config: State<Config>,
     backend: State<Github>,
+    _api_token: ApiToken,
 ) -> Json<String> {
     let release = backend.resolve_release(platform, version).unwrap();
 
     Json(
         serde_json::to_string(&UpdateResponse {
-            url: generate_download_url(scheme, host, &cfg, release).unwrap(),
+            url: generate_download_url(&config, &base_url, release).unwrap(),
         })
         .unwrap(),
     )
@@ -111,26 +110,17 @@ fn download(
 }
 
 fn generate_download_url(
-    scheme: Scheme,
-    host: Host,
-    cfg: &Config,
+    config: &Config,
+    base_url: &BaseUrl,
     release: Box<dyn Release>,
 ) -> Result<String, Error> {
-    let url = match &cfg.base_url {
-        Some(base_url) => format!(
-            "{base_url}/download/{filename}",
-            base_url = base_url,
-            filename = release.get_filename().to_str().unwrap()
-        ),
-        None => format!(
-            "{scheme}://{host}/download/{filename}",
-            scheme = scheme.to_string(),
-            host = host.to_string(),
-            filename = release.get_filename().to_str().unwrap()
-        ),
-    };
+    let url = format!(
+        "{base_url}/download/{filename}",
+        base_url = base_url.to_string(),
+        filename = release.get_filename().to_str().unwrap()
+    );
 
-    if let Some(secret) = &cfg.url_signature_secret {
+    if let Some(secret) = &config.url_signature_secret {
         let exp = time::SystemTime::now() + time::Duration::from_secs(60);
         let url = sign_url(secret, url.as_str(), exp)?;
         return Ok(url);

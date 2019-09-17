@@ -8,6 +8,7 @@ pub mod backend;
 pub(crate) mod error;
 pub(crate) use error::ErrorKind;
 use signed_urls::validate;
+use std::path::PathBuf;
 
 #[macro_use]
 extern crate failure;
@@ -116,15 +117,14 @@ impl FromRequest<'_, '_> for Signature {
 
     fn from_request(request: &Request<'_>) -> request::Outcome<Self, Self::Error> {
         let config = request.guard::<State<Config>>().unwrap();
-        let host = request.guard::<Host>().unwrap();
-        let scheme = request.guard::<Scheme>().unwrap();
+        let base_url = request.guard::<BaseUrl>().unwrap();
 
         let url = format!(
-            "{scheme}://{host}{uri}",
-            scheme = scheme.to_string(),
-            host = host.to_string(),
+            "{base_url}{uri}",
+            base_url = base_url.to_string(),
             uri = request.uri().to_string()
         );
+        println!("{}", url);
 
         if let Some(secret) = &config.url_signature_secret {
             return match validate(&secret, &url) {
@@ -137,23 +137,37 @@ impl FromRequest<'_, '_> for Signature {
     }
 }
 
-/// Host is a rocket guard that represents a hostname.
-pub struct Host(String);
+/// Returns the baseurl, this can be overwritten in the configuration.
+pub struct BaseUrl(String);
 
-impl ToString for Host {
+impl ToString for BaseUrl {
     fn to_string(&self) -> String {
-        (&self).0.clone()
+        self.0.clone()
     }
 }
 
-impl FromRequest<'_, '_> for Host {
+impl FromRequest<'_, '_> for BaseUrl {
     type Error = String;
 
     fn from_request(request: &Request<'_>) -> request::Outcome<Self, Self::Error> {
-        match get_host(&request) {
-            Some(host) => Outcome::Success(Host(host)),
-            None => Outcome::Failure((Status::BadRequest, "cannot determine hostname".to_string())),
+        let config = request.guard::<State<Config>>().unwrap();
+        if let Some(base_url) = &config.base_url {
+            return Outcome::Success(BaseUrl(base_url.clone()));
         }
+
+        let scheme = get_scheme(&request);
+
+        let host = match get_host(&request) {
+            Some(host) => host,
+            None => {
+                return Outcome::Failure((
+                    Status::BadRequest,
+                    "cannot determine hostname".to_string(),
+                ))
+            }
+        };
+
+        Outcome::Success(BaseUrl(format!("{}://{}", scheme.to_string(), host)))
     }
 }
 
@@ -172,18 +186,6 @@ impl ToString for Scheme {
     }
 }
 
-impl FromRequest<'_, '_> for Scheme {
-    type Error = String;
-
-    fn from_request(request: &Request<'_>) -> request::Outcome<Self, Self::Error> {
-        match get_scheme(&request).as_str() {
-            ("http") => Outcome::Success(Scheme::Http),
-            ("https") => Outcome::Success(Scheme::Https),
-            _ => Outcome::Failure((Status::BadRequest, "cannot determine scheme".to_string())),
-        }
-    }
-}
-
 /// Returns the host of the request.
 fn get_host(req: &Request) -> Option<String> {
     if let Some(h) = req.headers().get_one("X-Forwarded-Host") {
@@ -194,15 +196,20 @@ fn get_host(req: &Request) -> Option<String> {
 }
 
 /// Returns the scheme of the request, respectful to the X-Forwarded-Proto header
-fn get_scheme(req: &Request) -> String {
-    if let Some(s) = req.headers().get_one("X-Forwarded-Proto") {
-        return s.to_string();
-    }
+fn get_scheme(req: &Request) -> Scheme {
+    let raw = match req.headers().get_one("X-Forwarded-Proto") {
+        Some(h) => h.to_string(),
+        None => req
+            .headers()
+            .get_one("Scheme")
+            .unwrap_or("http")
+            .to_string(),
+    };
 
-    req.headers()
-        .get_one("Scheme")
-        .unwrap_or("http")
-        .to_string()
+    match raw.as_str() {
+        "https" => Scheme::Https,
+        _ => Scheme::Http,
+    }
 }
 
 // TODO(rharink): Implement better token authentication
