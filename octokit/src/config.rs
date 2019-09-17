@@ -1,4 +1,4 @@
-use reqwest::{Client, Url};
+use reqwest::{Url};
 
 pub struct Config {
     pub base_url: Url,

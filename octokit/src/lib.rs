@@ -9,9 +9,9 @@
 #[macro_use]
 extern crate nom;
 
-use reqwest::header::HeaderMap;
-use reqwest::Url;
-use std::str::FromStr;
+
+
+
 
 mod config;
 pub mod endpoint;

@@ -1,9 +1,9 @@
-use crate::error::ErrorKind;
+
 use crate::{util, Config};
 use failure::Error;
 use reqwest::{Client, Method, RequestBuilder, Response};
 use serde::{Deserialize, Serialize};
-use std::io;
+
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Release {

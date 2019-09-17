@@ -1,5 +1,5 @@
 use crate::Config;
-use reqwest::{Client, Error, Method, RequestBuilder, Response};
+use reqwest::{Client, Error, Method, RequestBuilder};
 
 /// Returns a 'reqwest' request-builder for a given method and path
 /// And configures security headers according to configuration.

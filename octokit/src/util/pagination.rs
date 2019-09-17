@@ -1,4 +1,4 @@
-use crate::{util, Config};
+use crate::{util};
 use reqwest::header::HeaderMap;
 use reqwest::{RequestBuilder, Response, Url};
 use std::str::FromStr;
@@ -24,7 +24,7 @@ pub fn paginate(
             panic!("non 200 status code returned {:?}", res);
         }
 
-        let lh = LinkHeaders::new(res.headers());
+        let _lh = LinkHeaders::new(res.headers());
         match LinkHeaders::new(res.headers()) {
             Some(lh) => {
                 if lh.should_next(page) {
