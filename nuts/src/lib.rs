@@ -9,7 +9,6 @@ pub(crate) mod error;
 pub(crate) use error::ErrorKind;
 use signed_urls::validate;
 
-
 #[macro_use]
 extern crate failure;
 
@@ -142,6 +141,9 @@ pub struct BaseUrl(String);
 
 impl ToString for BaseUrl {
     fn to_string(&self) -> String {
+        if self.0.ends_with("/") {
+            return self.0[..self.0.len() - 1].to_string();
+        }
         self.0.clone()
     }
 }
@@ -152,6 +154,7 @@ impl FromRequest<'_, '_> for BaseUrl {
     fn from_request(request: &Request<'_>) -> request::Outcome<Self, Self::Error> {
         let config = request.guard::<State<Config>>().unwrap();
         if let Some(base_url) = &config.base_url {
+            println!("returning base-url from config {}", base_url);
             return Outcome::Success(BaseUrl(base_url.clone()));
         }
 
@@ -167,7 +170,10 @@ impl FromRequest<'_, '_> for BaseUrl {
             }
         };
 
-        Outcome::Success(BaseUrl(format!("{}://{}", scheme.to_string(), host)))
+        let url = format!("{}://{}", scheme.to_string(), host);
+        println!("returning base-url from request {}", url);
+
+        Outcome::Success(BaseUrl(url))
     }
 }
 
@@ -280,7 +286,6 @@ impl<'a> FromParam<'a> for Platform {
 #[cfg(test)]
 mod test {
     use super::*;
-    
 
     #[test]
     fn test_from_param() {
@@ -311,5 +316,14 @@ mod test {
         Version::from("0.1.0-alpha.0").unwrap();
         Version::from("v0.1.0-alpha.0").unwrap();
         Version::from("v2.0.0-beta.1").unwrap();
+    }
+
+    #[test]
+    fn test_base_url() {
+        let bu = BaseUrl("https://release.something.inc/product/".to_string());
+        assert_eq!(
+            bu.to_string(),
+            "https://release.something.inc/product".to_string()
+        );
     }
 }

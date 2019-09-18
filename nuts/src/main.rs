@@ -25,15 +25,6 @@ pub struct UpdateResponse {
     url: String,
 }
 
-impl UpdateResponse {
-    pub fn dummy() -> Self {
-        UpdateResponse {
-            url: "http://localhost:4000/flux/download/version/0.3.0-alpha.16/osx_64?filetype=zip"
-                .to_string(),
-        }
-    }
-}
-
 fn main() {
     let cfg = Config {
         secret_token: env::var("NUTS_SECRET_TOKEN").ok(),
@@ -48,6 +39,8 @@ fn main() {
         token: Some(cfg.github_access_token.clone()),
     });
 
+    println!("config: {:?}", cfg);
+
     // TODO: make configurable
     let rocket_config = rocket::Config::build(Environment::Staging)
         .address("0.0.0.0")
@@ -58,13 +51,8 @@ fn main() {
     rocket::custom(rocket_config)
         .manage(backend)
         .manage(cfg)
-        .mount("/", routes![index, update, download])
+        .mount("/", routes![update, download])
         .launch();
-}
-
-#[get("/")]
-fn index() -> &'static str {
-    "Hello, world!"
 }
 
 /// TODO: backend: State<Box<dyn Backend + Sync + Send>>,
@@ -118,6 +106,13 @@ fn generate_download_url(
         "{base_url}/download/{filename}",
         base_url = base_url.to_string(),
         filename = release.get_filename().to_str().unwrap()
+    );
+
+    println!(
+        "generate_download_url: {} {} {}",
+        base_url.to_string(),
+        release.get_filename().to_str().unwrap(),
+        url
     );
 
     if let Some(secret) = &config.url_signature_secret {
