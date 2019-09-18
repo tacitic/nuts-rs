@@ -118,10 +118,16 @@ impl FromRequest<'_, '_> for Signature {
         let config = request.guard::<State<Config>>().unwrap();
         let base_url = request.guard::<BaseUrl>().unwrap();
 
-        let url = format!(
-            "{base_url}{uri}",
-            base_url = base_url.to_string(),
-            uri = request.uri().to_string()
+        // TODO(rharink): Find a better way to ignore/replace multiple consecutive slashes in a url
+        let url = str::replace(
+            format!(
+                "{base_url}{uri}",
+                base_url = base_url.to_string(),
+                uri = request.uri().to_string(),
+            )
+            .as_str(),
+            "//",
+            "/",
         );
         println!("{}", url);
 
